@@ -34,6 +34,7 @@ const env = {
 function getDefaults() {
 	return {
 		android: "android/app/build.gradle",
+		expoRelease: "android/app/src/main/AndroidManifest.xml",
 		ios: "ios"
 	};
 }
@@ -115,14 +116,7 @@ function getCFBundleShortVersionString(versionName) {
  * @return {Boolean} true if the project is an Expo app
  */
 function isExpoProject(projPath) {
-	try {
-		let module = resolveFrom(projPath, "expo");
-		let appInfo = require(`${projPath}/app.json`);
-
-		return !!(module && appInfo.expo);
-	} catch (err) {
-		return false;
-	}
+	return false
 }
 
 /**
@@ -141,6 +135,7 @@ function version(program, projectPath) {
 
 	const programOpts = Object.assign({}, prog, {
 		android: path.join(projPath, prog.android),
+		expoRelease: path.join(projPath, prog.expoRelease),
 		ios: path.join(projPath, prog.ios)
 	});
 
@@ -269,6 +264,48 @@ function version(program, projectPath) {
 			}
 
 			log({ text: "Android updated" }, programOpts.quiet);
+			resolve();
+		});
+	}
+
+	if (!targets.length || targets.indexOf("android") > -1) {
+		android = new Promise(function(resolve, reject) {
+			log({ text: "Versioning Android Manifest ..." }, programOpts.quiet);
+
+			var androidManifest;
+
+			try {
+				androidManifest = fs.readFileSync(programOpts.expoRelease, "utf8");
+			} catch (err) {
+				isExpoApp ||
+					reject([
+						{
+							style: "red",
+							text: "No Android Manifest file found at " + programOpts.android
+						},
+						{
+							style: "yellow",
+							text: 'Use the "--android" option to specify the path manually'
+						}
+					]);
+			}
+
+			if (!programOpts.incrementBuild && !isExpoApp) {
+				var appVersion = appPkg.version.replaceAll(".","-");
+				androidManifest = androidManifest.replace(
+					/prod-android-v[^\"]*/,
+					"prod-android-v" + appVersion
+				);
+			}
+
+
+			if (isExpoApp) {
+				fs.writeFileSync(appJSONPath, JSON.stringify(appJSON, null, 2));
+			} else {
+				fs.writeFileSync(programOpts.expoRelease, androidManifest);
+			}
+
+			log({ text: "Android Manifest updated" }, programOpts.quiet);
 			resolve();
 		});
 	}
